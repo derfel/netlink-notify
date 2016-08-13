@@ -60,7 +60,7 @@ std::string get_iso8601_timestamp()
 	auto milli = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
 	auto now_c = std::chrono::system_clock::to_time_t(now);
 
-	buffer << std::put_time(std::gmtime(&now_c), "%FT%T") << ',' << std::setfill('0') << std::setw(3) << milli << 'Z';
+	buffer << std::put_time(std::gmtime(&now_c), "%FT%T") << '.' << std::setfill('0') << std::setw(3) << milli << 'Z';
 
 	return buffer.str();
 }
