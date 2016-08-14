@@ -1,6 +1,6 @@
 {
 	"name": "netlink-notify",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"main": "netlink.js",
 	"gypfile": true,
 	"author": "Federico Stella <code@derfel.net>",
