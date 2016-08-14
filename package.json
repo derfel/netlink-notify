@@ -5,6 +5,12 @@
 	"gypfile": true,
 	"author": "Federico Stella <code@derfel.net>",
 	"license": "MIT",
+	"repository" : "derfel/netlink-notify",
+	"keywords": [ "netlink", "libmnl", "netfilter" ],
+	"bugs": {
+		"url" : "https://github.com/derfel/netlink-notify/issues"
+	},
+	"os": [ "linux" ],
 	"dependencies": {
 		"nan": "*",
 		"streaming-worker": "^1.0.1",
