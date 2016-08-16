@@ -27,3 +27,10 @@ After you have all of the prerequisite packages installed, you can build avro-no
 	node-gyp configure build
 
 There's a demo inside the demo/ dir.
+
+### Status
+Status: Alpha. Use at your own risk.
+
+### Have questions? Found a bug?
+
+Please submit issues to the Github issue tracker

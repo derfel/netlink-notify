@@ -30,6 +30,7 @@
 #include <iomanip>
 #include <ctime>
 #include <tuple>
+#include <deque>
 
 #include <unistd.h>
 #include <net/if.h>
@@ -65,7 +66,6 @@ std::string get_iso8601_timestamp()
 	return buffer.str();
 }
 
-
 using namespace std;
 
 class Netlink;
@@ -75,14 +75,15 @@ struct cbdata {
 	const AsyncProgressWorker::ExecutionProgress& progress;
 };
 
-class Netlink : public StreamingWorker {
+class Netlink: public StreamingWorker
+{
 	public:
 		typedef std::tuple<int, json> callback_return_json_type;
 
 		typedef AsyncProgressWorker::ExecutionProgress progress_type;
 
 		Netlink(Callback *data, Callback *complete, Callback *error_callback, v8::Local<v8::Object> & options)
-			: StreamingWorker(data, complete, error_callback) {
+			: StreamingWorker(data, complete, error_callback), seq_(0) {
 
 				if (!(nl_ = mnl_socket_open(NETLINK_ROUTE))) {
 					SetErrorMessage("Cannot create NETLINK_ROUTE socket");
@@ -93,11 +94,14 @@ class Netlink : public StreamingWorker {
 					SetErrorMessage("Cannot bind libmnl socket");
 					return;
 				}
+
+				portid_ = mnl_socket_get_portid(nl_);
 			}
 
 		void Execute(const progress_type& progress) {
 			uv_loop_t * loop = uv_loop_new();
 
+			uv_timer_init(loop, &timer_req_);
 			uv_poll_init_socket(loop, &poll_handle_, mnl_socket_get_fd(nl_));
 
 			// XXX: we need to pass this and progress through the callback
@@ -109,7 +113,65 @@ class Netlink : public StreamingWorker {
 				self->pollcb(((struct cbdata *) h->data)->progress, h, s, e);
 			});
 
+			timer_req_.data = this;
+			uv_timer_start(&timer_req_, [](uv_timer_t * t) {
+				auto self = reinterpret_cast<Netlink *>(t->data);
+				self->drain_queue(t);
+			}, 10, 10);
+
 			uv_run(loop, UV_RUN_DEFAULT);
+		}
+
+		/*
+		 * hack to receive message from javascript because the loop is watching netlink fd.
+		 */
+		void drain_queue(uv_timer_t *)
+		{
+			std::deque<Message> queue;
+
+			fromNode.readAll(queue);
+
+			for (auto m: queue) {
+				char buf[MNL_SOCKET_BUFFER_SIZE];
+				struct nlmsghdr * nlh;
+
+				if (m.name == "get_route") {
+					nlh = mnl_nlmsg_put_header(buf);
+					nlh->nlmsg_type = RTM_GETROUTE;
+					nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
+					nlh->nlmsg_seq = ++seq_;
+					struct rtmsg * rtm = reinterpret_cast<struct rtmsg *>(mnl_nlmsg_put_extra_header(nlh, sizeof(struct rtmsg)));
+
+					if (m.data == "ipv4")
+						rtm->rtm_family = AF_INET;
+					else
+						rtm->rtm_family = AF_INET6;
+
+					mnl_socket_sendto(nl_, nlh, nlh->nlmsg_len);
+				} else if (m.name == "get_addr") {
+					nlh = mnl_nlmsg_put_header(buf);
+					nlh->nlmsg_type	= RTM_GETADDR;
+					nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
+					nlh->nlmsg_seq = ++seq_;
+					struct rtgenmsg* rt = reinterpret_cast<struct rtgenmsg*>(mnl_nlmsg_put_extra_header(nlh, sizeof(struct rtgenmsg)));
+
+					if (m.data == "ipv4")
+						rt->rtgen_family = AF_INET;
+					else
+						rt->rtgen_family = AF_INET6;
+
+					mnl_socket_sendto(nl_, nlh, nlh->nlmsg_len);
+				} else if (m.name == "get_link") {
+					nlh = mnl_nlmsg_put_header(buf);
+					nlh->nlmsg_type	= RTM_GETLINK;
+					nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
+					nlh->nlmsg_seq = ++seq_;
+					struct rtgenmsg* rt = reinterpret_cast<struct rtgenmsg*>(mnl_nlmsg_put_extra_header(nlh, sizeof(struct rtgenmsg)));
+					rt->rtgen_family = AF_PACKET;
+
+					mnl_socket_sendto(nl_, nlh, nlh->nlmsg_len);
+				}
+			}
 		}
 
 		void pollcb(const progress_type & progress, uv_poll_t * handle, int status, int events)
@@ -123,7 +185,7 @@ class Netlink : public StreamingWorker {
 
 				struct cbdata cb = { this, progress };
 
-				ret = mnl_cb_run(buf, ret, 0, 0, [](const struct nlmsghdr *nlh, void * data) -> int {
+				ret = mnl_cb_run(buf, ret, 0, portid_, [](const struct nlmsghdr *nlh, void * data) -> int {
 						auto self = ((struct cbdata *) data)->self;
 						return self->data_cb(nlh, ((struct cbdata *) data)->progress);
 					}, &cb);
@@ -140,21 +202,24 @@ class Netlink : public StreamingWorker {
 
 			switch (nlh->nlmsg_type) {
 				case RTM_NEWROUTE:
-				case RTM_DELROUTE: {
+				case RTM_DELROUTE:
+				case RTM_GETROUTE: {
 					std::tie(retval, j) = data_route_cb(nlh);
 					Message tosend("route", j.dump());
 					writeToNode(progress, tosend);
 					break;
 				}
 				case RTM_NEWLINK:
-				case RTM_DELLINK: {
+				case RTM_DELLINK:
+				case RTM_GETLINK: {
 					std::tie(retval, j) = data_link_cb(nlh);
 					Message tosend("link", j.dump());
 					writeToNode(progress, tosend);
 					break;
 				}
 				case RTM_NEWADDR:
-				case RTM_DELADDR: {
+				case RTM_DELADDR:
+				case RTM_GETADDR: {
 					std::tie(retval, j) = data_addr_cb(nlh);
 					Message tosend("addr", j.dump());
 					writeToNode(progress, tosend);
@@ -899,6 +964,9 @@ class Netlink : public StreamingWorker {
 	private:
 		struct mnl_socket * nl_;
 		uv_poll_t poll_handle_;
+		uv_timer_t timer_req_;
+		unsigned int seq_;
+		unsigned int portid_;
 };
 
 // Important:  You MUST include this function, and you cannot alter

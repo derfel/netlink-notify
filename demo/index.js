@@ -18,3 +18,13 @@ netlink.from.on('error', function(e) {
 	console.log(e);
 });
 
+setTimeout(() => {
+	netlink.to.emit('get_route', 'ipv4');
+}, 1000);
+setInterval(() => {
+	netlink.to.emit('get_addr', 'ipv4');
+}, 2000);
+setTimeout(() => {
+	netlink.to.emit('get_link');
+}, 3000);
+
