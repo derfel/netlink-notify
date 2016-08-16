@@ -99,10 +99,10 @@ class Netlink: public StreamingWorker
 			}
 
 		void Execute(const progress_type& progress) {
-			uv_loop_t * loop = uv_loop_new();
+			loop_ = uv_loop_new();
 
-			uv_timer_init(loop, &timer_req_);
-			uv_poll_init_socket(loop, &poll_handle_, mnl_socket_get_fd(nl_));
+			uv_timer_init(loop_, &timer_req_);
+			uv_poll_init_socket(loop_, &poll_handle_, mnl_socket_get_fd(nl_));
 
 			// XXX: we need to pass this and progress through the callback
 			struct cbdata cb = { this, progress };
@@ -119,7 +119,7 @@ class Netlink: public StreamingWorker
 				self->drain_queue(t);
 			}, 10, 10);
 
-			uv_run(loop, UV_RUN_DEFAULT);
+			uv_run(loop_, UV_RUN_DEFAULT);
 		}
 
 		/*
@@ -170,6 +170,8 @@ class Netlink: public StreamingWorker
 					rt->rtgen_family = AF_PACKET;
 
 					mnl_socket_sendto(nl_, nlh, nlh->nlmsg_len);
+				} else if (m.name == "stop_loop") {
+					uv_stop(loop_);
 				}
 			}
 		}
@@ -963,6 +965,7 @@ class Netlink: public StreamingWorker
 
 	private:
 		struct mnl_socket * nl_;
+		uv_loop_t * loop_;
 		uv_poll_t poll_handle_;
 		uv_timer_t timer_req_;
 		unsigned int seq_;
