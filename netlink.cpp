@@ -52,6 +52,13 @@ using json = nlohmann::json;
          (attr) = mnl_attr_next(attr))
 
 
+/*
+ * Missing constant in glibc
+ */
+const unsigned int IFF_LOWER_UP = 1 << 16;
+const unsigned int IFF_DORMANT = 1 << 17;
+const unsigned int IFF_ECHO = 1 << 18;
+
 std::string get_iso8601_timestamp()
 {
 	std::ostringstream buffer;
@@ -475,6 +482,15 @@ class Netlink: public StreamingWorker
 
 				if (ifm->ifi_flags & IFF_DYNAMIC)
 					flags.push_back("dynamic");
+
+				if (ifm->ifi_flags & IFF_LOWER_UP)
+					flags.push_back("lowerup");
+
+				if (ifm->ifi_flags & IFF_DORMANT)
+					flags.push_back("dormant");
+
+				if (ifm->ifi_flags & IFF_ECHO)
+					flags.push_back("echo");
 
 				return flags;
 			}();
