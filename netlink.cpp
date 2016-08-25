@@ -97,12 +97,12 @@ class Netlink: public StreamingWorker
 					return;
 				}
 
-				if (mnl_socket_bind(nl_, RTMGRP_LINK | RTMGRP_IPV4_ROUTE | RTMGRP_IPV6_ROUTE | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR, MNL_SOCKET_AUTOPID) < 0) {
+				portid_ = MNL_SOCKET_AUTOPID;
+
+				if (mnl_socket_bind(nl_, RTMGRP_LINK | RTMGRP_IPV4_ROUTE | RTMGRP_IPV6_ROUTE | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR, portid_) < 0) {
 					SetErrorMessage("Cannot bind libmnl socket");
 					return;
 				}
-
-				portid_ = mnl_socket_get_portid(nl_);
 			}
 
 		void Execute(const progress_type& progress) {
