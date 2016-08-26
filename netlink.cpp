@@ -279,6 +279,10 @@ class Netlink: public StreamingWorker
 					if (mnl_attr_validate(attr, MNL_TYPE_STRING) < 0)
 						return MNL_CB_ERROR;
 					break;
+				case IFLA_LINK:
+					if (mnl_attr_validate(attr, MNL_TYPE_U32) < 0)
+						return MNL_CB_ERROR;
+					break;
 				case IFLA_QDISC:
 					if (mnl_attr_validate(attr, MNL_TYPE_STRING) < 0)
 						return MNL_CB_ERROR;
@@ -553,6 +557,8 @@ class Netlink: public StreamingWorker
 				ret["data"]["mtu"] = mnl_attr_get_u32(tb[IFLA_MTU]);
 			if (tb[IFLA_IFNAME])
 				ret["data"]["name"] = std::string(mnl_attr_get_str(tb[IFLA_IFNAME]));
+			if (tb[IFLA_LINK])
+				ret["data"]["link"] = mnl_attr_get_u32(tb[IFLA_LINK]);
 			if (tb[IFLA_QDISC])
 				ret["data"]["qdisc"] = std::string(mnl_attr_get_str(tb[IFLA_QDISC]));
 			if (tb[IFLA_TXQLEN])
