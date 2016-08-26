@@ -283,6 +283,10 @@ class Netlink: public StreamingWorker
 						return MNL_CB_ERROR;
 					}
 					break;
+				case IFLA_STATS64:
+					if (mnl_attr_validate2 (attr, MNL_TYPE_UNSPEC, sizeof(struct rtnl_link_stats64)) < 0)
+						return MNL_CB_ERROR;
+					break;
 			}
 			tb[type] = attr;
 
@@ -522,6 +526,48 @@ class Netlink: public StreamingWorker
 			}
 			if (tb[IFLA_IFNAME]) {
 				ret["data"]["name"] = std::string(mnl_attr_get_str(tb[IFLA_IFNAME]));
+			}
+			if (tb[IFLA_STATS64]) {
+				struct rtnl_link_stats64 * link_stats;
+
+				link_stats = reinterpret_cast<struct rtnl_link_stats64 *>(mnl_attr_get_payload(tb[IFLA_STATS64]));
+
+				json stats;
+				stats["rx_packets"] = link_stats->rx_packets;
+				stats["tx_packets"] = link_stats->tx_packets;
+				stats["rx_bytes"] = link_stats->rx_bytes;
+				stats["tx_bytes"] = link_stats->tx_bytes;
+				stats["rx_errors"] = link_stats->rx_errors;
+				stats["tx_errors"] = link_stats->tx_errors;
+				stats["rx_dropped"] = link_stats->rx_dropped;
+				stats["tx_dropped"] = link_stats->tx_dropped;
+				stats["multicast"] = link_stats->multicast;
+				stats["collisions"] = link_stats->collisions;
+
+				stats["rx_compressed"] = link_stats->rx_compressed;
+				stats["tx_compressed"] = link_stats->tx_compressed;
+				stats["rx_nohandler"] = link_stats->rx_nohandler;
+
+				json rx_err;
+				rx_err["length"] = link_stats->rx_length_errors;
+				rx_err["over"] = link_stats->rx_over_errors;
+				rx_err["crc"] = link_stats->rx_crc_errors;
+				rx_err["frame"] = link_stats->rx_frame_errors;
+				rx_err["fifo"] = link_stats->rx_fifo_errors;
+				rx_err["missed"] = link_stats->rx_missed_errors;
+
+				stats["stats"]["rx_errors"] = rx_err;
+
+				json tx_err;
+				tx_err["aborted"] = link_stats->tx_aborted_errors;
+				tx_err["carrier"] = link_stats->tx_carrier_errors;
+				tx_err["fifo"] = link_stats->tx_fifo_errors;
+				tx_err["heartbeat"] = link_stats->tx_heartbeat_errors;
+				tx_err["window"] = link_stats->tx_window_errors;
+
+				stats["tx_errors"] = tx_err;
+
+				ret["data"]["stats"] = stats;
 			}
 
 			ret["type"] = "link";
