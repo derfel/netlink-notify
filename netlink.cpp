@@ -272,19 +272,47 @@ class Netlink: public StreamingWorker
 
 			switch(type) {
 				case IFLA_MTU:
-					if (mnl_attr_validate(attr, MNL_TYPE_U32) < 0) {
-						//perror("mnl_attr_validate1");
+					if (mnl_attr_validate(attr, MNL_TYPE_U32) < 0)
 						return MNL_CB_ERROR;
-					}
 					break;
 				case IFLA_IFNAME:
-					if (mnl_attr_validate(attr, MNL_TYPE_STRING) < 0) {
-						//perror("mnl_attr_validate2");
+					if (mnl_attr_validate(attr, MNL_TYPE_STRING) < 0)
 						return MNL_CB_ERROR;
-					}
+					break;
+				case IFLA_QDISC:
+					if (mnl_attr_validate(attr, MNL_TYPE_STRING) < 0)
+						return MNL_CB_ERROR;
+					break;
+				case IFLA_TXQLEN:
+					if (mnl_attr_validate(attr, MNL_TYPE_U32) < 0)
+						return MNL_CB_ERROR;
+					break;
+				case IFLA_OPERSTATE:
+					if (mnl_attr_validate(attr, MNL_TYPE_U8) < 0)
+						return MNL_CB_ERROR;
+					break;
+				case IFLA_LINKMODE:
+					if (mnl_attr_validate(attr, MNL_TYPE_U8) < 0)
+						return MNL_CB_ERROR;
+					break;
+				case IFLA_IFALIAS:
+					if (mnl_attr_validate(attr, MNL_TYPE_STRING) < 0)
+						return MNL_CB_ERROR;
 					break;
 				case IFLA_STATS64:
-					if (mnl_attr_validate2 (attr, MNL_TYPE_UNSPEC, sizeof(struct rtnl_link_stats64)) < 0)
+					if (mnl_attr_validate2(attr, MNL_TYPE_UNSPEC, sizeof(struct rtnl_link_stats64)) < 0)
+						return MNL_CB_ERROR;
+					break;
+				case IFLA_GROUP:
+					if (mnl_attr_validate(attr, MNL_TYPE_U32) < 0)
+						return MNL_CB_ERROR;
+					break;
+				case IFLA_NUM_TX_QUEUES:
+					if (mnl_attr_validate(attr, MNL_TYPE_U32) < 0)
+						return MNL_CB_ERROR;
+					break;
+				case IFLA_NUM_RX_QUEUES:
+					if (mnl_attr_validate(attr, MNL_TYPE_U32) < 0)
 						return MNL_CB_ERROR;
 					break;
 			}
@@ -521,12 +549,21 @@ class Netlink: public StreamingWorker
 
 			do_attr_parse(nlh, sizeof(*ifm), tb);
 
-			if (tb[IFLA_MTU]) {
+			if (tb[IFLA_MTU])
 				ret["data"]["mtu"] = mnl_attr_get_u32(tb[IFLA_MTU]);
-			}
-			if (tb[IFLA_IFNAME]) {
+			if (tb[IFLA_IFNAME])
 				ret["data"]["name"] = std::string(mnl_attr_get_str(tb[IFLA_IFNAME]));
-			}
+			if (tb[IFLA_QDISC])
+				ret["data"]["qdisc"] = std::string(mnl_attr_get_str(tb[IFLA_QDISC]));
+			if (tb[IFLA_TXQLEN])
+				ret["data"]["txqlen"] = mnl_attr_get_u32(tb[IFLA_TXQLEN]);
+			if (tb[IFLA_OPERSTATE])
+				ret["data"]["operstate"] = mnl_attr_get_u8(tb[IFLA_OPERSTATE]);
+			if (tb[IFLA_LINKMODE])
+				ret["data"]["linkmode"] = mnl_attr_get_u8(tb[IFLA_LINKMODE]);
+			if (tb[IFLA_IFALIAS])
+				ret["data"]["ifalias"] = std::string(mnl_attr_get_str(tb[IFLA_IFALIAS]));
+
 			if (tb[IFLA_STATS64]) {
 				struct rtnl_link_stats64 * link_stats;
 
@@ -569,6 +606,12 @@ class Netlink: public StreamingWorker
 
 				ret["data"]["stats"] = stats;
 			}
+			if (tb[IFLA_GROUP])
+				ret["data"]["linkmode"] = mnl_attr_get_u32(tb[IFLA_GROUP]);
+			if (tb[IFLA_NUM_TX_QUEUES])
+				ret["data"]["num_tx_queues"] = mnl_attr_get_u32(tb[IFLA_NUM_TX_QUEUES]);
+			if (tb[IFLA_NUM_RX_QUEUES])
+				ret["data"]["num_rx_queues"] = mnl_attr_get_u32(tb[IFLA_NUM_RX_QUEUES]);
 
 			ret["type"] = "link";
 			ret["event"] = nlh->nlmsg_type == RTM_NEWLINK ? "new" : "delete";
