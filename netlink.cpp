@@ -92,23 +92,33 @@ class Netlink: public StreamingWorker
 		Netlink(Callback *data, Callback *complete, Callback *error_callback, v8::Local<v8::Object> & options)
 			: StreamingWorker(data, complete, error_callback), seq_(0) {
 
-				if (!(nl_ = mnl_socket_open(NETLINK_ROUTE))) {
-					SetErrorMessage("Cannot create NETLINK_ROUTE socket");
-					return;
-				}
-
-				portid_ = MNL_SOCKET_AUTOPID;
-
-				if (mnl_socket_bind(nl_, RTMGRP_LINK | RTMGRP_IPV4_ROUTE | RTMGRP_IPV6_ROUTE | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR, portid_) < 0) {
-					SetErrorMessage("Cannot bind libmnl socket");
-					return;
-				}
+			if (!(nl_ = mnl_socket_open(NETLINK_ROUTE))) {
+				SetErrorMessage("Cannot create NETLINK_ROUTE socket");
+				return;
 			}
+
+			portid_ = MNL_SOCKET_AUTOPID;
+
+			if (mnl_socket_bind(nl_, RTMGRP_LINK | RTMGRP_IPV4_ROUTE | RTMGRP_IPV6_ROUTE | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR, portid_) < 0) {
+				SetErrorMessage("Cannot bind libmnl socket");
+				return;
+			}
+		}
+
+		bool need_async() const
+		{
+			return true;
+		}
 
 		void Execute(const progress_type& progress) {
 			loop_ = uv_loop_new();
 
-			uv_timer_init(loop_, &timer_req_);
+			async_.data = this;
+			uv_async_init(loop_, &async_, [](uv_async_t * a) {
+				auto self = reinterpret_cast<Netlink *>(a->data);
+				self->drain_queue();
+			});
+
 			uv_poll_init_socket(loop_, &poll_handle_, mnl_socket_get_fd(nl_));
 
 			// XXX: we need to pass this and progress through the callback
@@ -120,11 +130,6 @@ class Netlink: public StreamingWorker
 				self->pollcb(((struct cbdata *) h->data)->progress, h, s, e);
 			});
 
-			timer_req_.data = this;
-			uv_timer_start(&timer_req_, [](uv_timer_t * t) {
-				auto self = reinterpret_cast<Netlink *>(t->data);
-				self->drain_queue(t);
-			}, 10, 10);
 
 			uv_run(loop_, UV_RUN_DEFAULT);
 		}
@@ -132,7 +137,7 @@ class Netlink: public StreamingWorker
 		/*
 		 * hack to receive message from javascript because the loop is watching netlink fd.
 		 */
-		void drain_queue(uv_timer_t *)
+		void drain_queue()
 		{
 			std::deque<Message> queue;
 
@@ -1078,7 +1083,6 @@ class Netlink: public StreamingWorker
 		struct mnl_socket * nl_;
 		uv_loop_t * loop_;
 		uv_poll_t poll_handle_;
-		uv_timer_t timer_req_;
 		unsigned int seq_;
 		unsigned int portid_;
 };
