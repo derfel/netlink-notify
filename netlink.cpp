@@ -604,7 +604,7 @@ class Netlink: public StreamingWorker
 				rx_err["fifo"] = link_stats->rx_fifo_errors;
 				rx_err["missed"] = link_stats->rx_missed_errors;
 
-				stats["stats"]["rx_errors"] = rx_err;
+				stats["rx_errors"] = rx_err;
 
 				json tx_err;
 				tx_err["aborted"] = link_stats->tx_aborted_errors;
