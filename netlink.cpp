@@ -355,7 +355,7 @@ class Netlink: public StreamingWorker
 			json ret;
 
 			ret["type"] = "addr";
-			ret["event"] = nlh->nlmsg_type == RTM_NEWADDR ? "new" : "delete";
+			ret["event"] = nlh->nlmsg_type == RTM_NEWADDR ? (nlh->nlmsg_seq ? "get" : "new") : "delete";
 			ret["timestamp"] = get_iso8601_timestamp();
 
 			ret["data"]["family"] = ifa->ifa_family == AF_INET ? "ipv4" : "ipv6";
@@ -625,7 +625,7 @@ class Netlink: public StreamingWorker
 				ret["data"]["num_rx_queues"] = mnl_attr_get_u32(tb[IFLA_NUM_RX_QUEUES]);
 
 			ret["type"] = "link";
-			ret["event"] = nlh->nlmsg_type == RTM_NEWLINK ? "new" : "delete";
+			ret["event"] = nlh->nlmsg_type == RTM_NEWLINK ? (nlh->nlmsg_seq ? "get" : "new") : "delete";
 			ret["timestamp"] = get_iso8601_timestamp();
 
 			return std::make_tuple(MNL_CB_OK, ret);
@@ -641,14 +641,7 @@ class Netlink: public StreamingWorker
 			reply["type"] = "route";
 			reply["timestamp"] = get_iso8601_timestamp();
 
-			switch(nlh->nlmsg_type) {
-				case RTM_NEWROUTE:
-					reply["event"] = "new";
-					break;
-				case RTM_DELROUTE:
-					reply["event"] = "delete";
-					break;
-			}
+			reply["event"] = nlh->nlmsg_type == RTM_NEWROUTE ? (nlh->nlmsg_seq ? "get" : "new") : "delete";
 
 			/* protocol family = AF_INET | AF_INET6 */
 			reply["data"]["family"] = rm->rtm_family == AF_INET ? "ipv4" : "ipv6";
